@@ -1,10 +1,14 @@
 ﻿using System;
+using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
 using System.IO.Compression;
 using System.Linq;
+using System.Text;
 using System.Text.RegularExpressions;
 using Nancy;
+using Nancy.Responses;
+using Newtonsoft.Json.Linq;
 using ZXing;
 using ZXing.Common;
 using ZXing.QrCode;
@@ -40,6 +44,8 @@ namespace StockMarket
                         bodyStream = Request.Body;
                     }
 
+                    var response = new List<BuyLowSellHigh>();
+
                     using (var archive = new ZipArchive(bodyStream))
                     {
                         foreach (var entry in archive.Entries)
@@ -54,13 +60,34 @@ namespace StockMarket
 
                                 if (result.Success)
                                 {
-
+                                    response.Add(new BuyLowSellHigh
+                                    {
+                                        FileName = entry.Name,
+                                        Buy = result.Buy,
+                                        Sell = result.Sell
+                                    });
                                 }
                             }
                         }
                     }
 
-                    return HttpStatusCode.OK;
+                    var jobj = new JObject();
+                    foreach (var buyLowSellHigh in response)
+                    {
+                        jobj.Add(new JProperty(buyLowSellHigh.FileName,
+                            new JObject(
+                                new JProperty("buyPoint", buyLowSellHigh.Buy.ToString()),
+                                new JProperty("sellPoint", buyLowSellHigh.Sell.ToString())
+                            )));
+                    }
+
+                    var jsonBytes = Encoding.UTF8.GetBytes(jobj.ToString());
+                    return new Response
+                    {
+                        StatusCode = HttpStatusCode.OK,
+                        ContentType = "application/json",
+                        Contents = s => s.Write(jsonBytes, 0, jsonBytes.Length)
+                    };
                 }
                 catch (Exception ex)
                 {
@@ -80,6 +107,13 @@ namespace StockMarket
             var result = reader.decode(bitmap);
 
             return result.Text;
+        }
+
+        private class BuyLowSellHigh
+        {
+            public string FileName { get; set; }
+            public double Buy { get; set; }
+            public double Sell { get; set; }
         }
     }
 }
