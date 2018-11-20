@@ -1,4 +1,4 @@
-﻿using System;
+﻿using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Drawing;
 using System.IO;
@@ -6,8 +6,8 @@ using System.IO.Compression;
 using System.Linq;
 using System.Text;
 using System.Text.RegularExpressions;
+using System.Threading.Tasks;
 using Nancy;
-using Nancy.Responses;
 using Newtonsoft.Json.Linq;
 using ZXing;
 using ZXing.Common;
@@ -30,7 +30,7 @@ namespace StockMarket
                 try
                 {
                     var contentTypeRegex = new Regex("^multipart/form-data;\\s*boundary=(.*)$", RegexOptions.IgnoreCase);
-                    Stream bodyStream;
+                    Stream bodyStream = null;
 
                     if (contentTypeRegex.IsMatch(Request.Headers.ContentType))
                     {
@@ -38,13 +38,9 @@ namespace StockMarket
                         var multipart = new HttpMultipart(Request.Body, boundary);
                         bodyStream = multipart.GetBoundaries().First().Value;
                     }
-                    else
-                    {
-                        // Regular model binding goes here.
-                        bodyStream = Request.Body;
-                    }
 
-                    var response = new List<BuyLowSellHigh>();
+
+                    var inputStreams = new List<InputStream>();
 
                     using (var archive = new ZipArchive(bodyStream))
                     {
@@ -52,24 +48,45 @@ namespace StockMarket
                         {
                             using (var entryStream = entry.Open())
                             {
-                                var rawTicks = DecodeQrCode(entryStream);
+                                var memoryStream = new MemoryStream();
+                                entryStream.CopyTo(memoryStream);
 
-                                var ticks = rawTicks.Split(' ').Select(double.Parse).ToArray();
-
-                                var result = _bestTradesFinder.Find(ticks);
-
-                                if (result.Success)
+                                inputStreams.Add(new InputStream
                                 {
-                                    response.Add(new BuyLowSellHigh
-                                    {
-                                        FileName = entry.Name,
-                                        Buy = result.Buy,
-                                        Sell = result.Sell
-                                    });
-                                }
+                                    FileName = entry.Name,
+                                    MemoryStream = memoryStream
+                                });
                             }
+
                         }
                     }
+
+                    var response = new ConcurrentBag<BuyLowSellHigh>();
+
+                    Parallel.ForEach(inputStreams, inputStream =>
+                    {
+                        try
+                        {
+                            var rawTicks = DecodeQrCode(inputStream.MemoryStream);
+
+                            var ticks = rawTicks.Split(' ').Select(double.Parse).ToArray();
+
+                            var result = _bestTradesFinder.Find(ticks);
+
+                            if (result.Success)
+                            {
+                                response.Add(new BuyLowSellHigh
+                                {
+                                    FileName = inputStream.FileName,
+                                    Buy = result.Buy,
+                                    Sell = result.Sell
+                                });
+                            }
+                        }
+                        catch
+                        {
+                        }
+                    });
 
                     var jobj = new JObject();
                     foreach (var buyLowSellHigh in response)
@@ -89,7 +106,7 @@ namespace StockMarket
                         Contents = s => s.Write(jsonBytes, 0, jsonBytes.Length)
                     };
                 }
-                catch (Exception ex)
+                catch
                 {
                     return HttpStatusCode.InternalServerError;
                 }
@@ -114,6 +131,12 @@ namespace StockMarket
             public string FileName { get; set; }
             public double Buy { get; set; }
             public double Sell { get; set; }
+        }
+
+        private class InputStream
+        {
+            public string FileName { get; set; }
+            public MemoryStream MemoryStream { get; set; }
         }
     }
 }
