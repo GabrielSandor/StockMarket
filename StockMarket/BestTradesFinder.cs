@@ -6,12 +6,13 @@
         {
             if (ticks.Length <= 2)
             {
-                return new BestTrade {Success = false};
+                return new BestTrade { Success = false };
             }
 
             var maxDiff = ticks[2] - ticks[0];
             var minimum = ticks[0];
             var indexOfMin = 0;
+            var indexOfBuy = 0;
 
             double buy = minimum, sell = ticks[2];
 
@@ -27,6 +28,17 @@
                     {
                         maxDiff = diff;
                         buy = minimum;
+                        indexOfBuy = indexOfMin;
+                        sell = current;
+                    }
+                }
+                else if (i - indexOfBuy > 1)
+                {
+                    var diff = current - buy;
+
+                    if (diff > maxDiff)
+                    {
+                        maxDiff = diff;
                         sell = current;
                     }
                 }

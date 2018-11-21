@@ -82,7 +82,7 @@ namespace StockMarket.Tests
             var bestTrade = _bestTradesFinder.Find(ticks);
 
             Assert.AreEqual(7, bestTrade.Buy);
-            Assert.AreEqual(5, bestTrade.Sell);
+            Assert.AreEqual(6, bestTrade.Sell);
         }
 
         [Test]
@@ -105,6 +105,61 @@ namespace StockMarket.Tests
 
             Assert.AreEqual(7, bestTrade.Buy);
             Assert.AreEqual(9, bestTrade.Sell);
+        }
+
+        [Test]
+        public void Test7()
+        {
+            var ticks = new double[] { 7, 6, 5, 4, 3, 2, 1 };
+
+            var bestTrade = _bestTradesFinder.Find(ticks);
+
+            Assert.AreEqual(7, bestTrade.Buy);
+            Assert.AreEqual(5, bestTrade.Sell);
+        }
+
+        [Test]
+        public void Test8()
+        {
+            var ticks = new double[] { 7, 7, 7, 10 };
+
+            var bestTrade = _bestTradesFinder.Find(ticks);
+
+            Assert.AreEqual(7, bestTrade.Buy);
+            Assert.AreEqual(10, bestTrade.Sell);
+        }
+
+        [Test]
+        public void Test9()
+        {
+            var ticks = new double[] { 7, 9, 5, 3, 2 };
+
+            var bestTrade = _bestTradesFinder.Find(ticks);
+
+            Assert.AreEqual(7, bestTrade.Buy);
+            Assert.AreEqual(5, bestTrade.Sell);
+        }
+
+        [Test]
+        public void Test10()
+        {
+            var ticks = new double[] { 7, 8, 9, 9, 10 };
+
+            var bestTrade = _bestTradesFinder.Find(ticks);
+
+            Assert.AreEqual(7, bestTrade.Buy);
+            Assert.AreEqual(10, bestTrade.Sell);
+        }
+
+        [Test]
+        public void Test11()
+        {
+            var ticks = new double[] { 7, 9, 5 };
+
+            var bestTrade = _bestTradesFinder.Find(ticks);
+
+            Assert.AreEqual(7, bestTrade.Buy);
+            Assert.AreEqual(5, bestTrade.Sell);
         }
     }
 }
