@@ -14,9 +14,19 @@ namespace StockMarket.Tests
         }
 
         [Test]
-        public void TestFailure()
+        public void TestFailure1()
         {
             var ticks = new[] { 19.35, 19.30 };
+
+            var bestTrade = _bestTradesFinder.Find(ticks);
+
+            Assert.IsFalse(bestTrade.Success);
+        }
+
+        [Test]
+        public void TestFailure2()
+        {
+            var ticks = new[] { 19.35 };
 
             var bestTrade = _bestTradesFinder.Find(ticks);
 
@@ -84,6 +94,17 @@ namespace StockMarket.Tests
 
             Assert.AreEqual(10, bestTrade.Buy);
             Assert.AreEqual(10, bestTrade.Sell);
+        }
+
+        [Test]
+        public void Test6()
+        {
+            var ticks = new double[] { 7, 5, 9 };
+
+            var bestTrade = _bestTradesFinder.Find(ticks);
+
+            Assert.AreEqual(7, bestTrade.Buy);
+            Assert.AreEqual(9, bestTrade.Sell);
         }
     }
 }
