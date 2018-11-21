@@ -1,8 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Threading.Tasks;
-using Nancy;
+﻿using Nancy;
 
 namespace StockMarket
 {
@@ -10,7 +6,7 @@ namespace StockMarket
     {
         public HomeModule()
         {
-            Get("/", _ => "Hello World from Nancy module!");
+            Get("/", _ => "");
         }
     }
 }

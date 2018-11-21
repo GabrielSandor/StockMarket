@@ -23,82 +23,19 @@ namespace StockMarket
         {
             _bestTradesFinder = new BestTradesFinder();
 
-            Get("/stockExchange", _ => "Hello from StockExchangeModule!");
+            Get("/stockExchange", _ => "");
 
             Post("/stockExchange", parameters =>
             {
                 try
                 {
-                    var contentTypeRegex = new Regex("^multipart/form-data;\\s*boundary=(.*)$", RegexOptions.IgnoreCase);
-                    Stream bodyStream = null;
+                    var requestBodyStream = ExtractBodyStream();
 
-                    if (contentTypeRegex.IsMatch(Request.Headers.ContentType))
-                    {
-                        var boundary = contentTypeRegex.Match(Request.Headers.ContentType).Groups[1].Value;
-                        var multipart = new HttpMultipart(Request.Body, boundary);
-                        bodyStream = multipart.GetBoundaries().First().Value;
-                    }
+                    var inputStreams = ExtractArchive(requestBodyStream);
 
+                    var response = ComputeResponse(inputStreams);
 
-                    var inputStreams = new List<InputStream>();
-
-                    using (var archive = new ZipArchive(bodyStream))
-                    {
-                        foreach (var entry in archive.Entries)
-                        {
-                            using (var entryStream = entry.Open())
-                            {
-                                var memoryStream = new MemoryStream();
-                                entryStream.CopyTo(memoryStream);
-
-                                inputStreams.Add(new InputStream
-                                {
-                                    FileName = entry.Name,
-                                    MemoryStream = memoryStream
-                                });
-                            }
-
-                        }
-                    }
-
-                    var response = new ConcurrentBag<BuyLowSellHigh>();
-
-                    Parallel.ForEach(inputStreams, inputStream =>
-                    {
-                        try
-                        {
-                            var rawTicks = DecodeQrCode(inputStream.MemoryStream);
-
-                            var ticks = rawTicks.Split(' ').Select(double.Parse).ToArray();
-
-                            var result = _bestTradesFinder.Find(ticks);
-
-                            if (result.Success)
-                            {
-                                response.Add(new BuyLowSellHigh
-                                {
-                                    FileName = inputStream.FileName,
-                                    Buy = result.Buy,
-                                    Sell = result.Sell
-                                });
-                            }
-                        }
-                        catch
-                        {
-                        }
-                    });
-
-                    var jobj = new JObject();
-                    foreach (var buyLowSellHigh in response)
-                    {
-                        jobj.Add(new JProperty(buyLowSellHigh.FileName,
-                            new JObject(
-                                new JProperty("buyPoint", buyLowSellHigh.Buy.ToString()),
-                                new JProperty("sellPoint", buyLowSellHigh.Sell.ToString())
-                            )));
-                    }
-
-                    var jsonBytes = Encoding.UTF8.GetBytes(jobj.ToString());
+                    var jsonBytes = BuildJsonResponse(response);
                     return new Response
                     {
                         StatusCode = HttpStatusCode.OK,
@@ -111,6 +48,93 @@ namespace StockMarket
                     return HttpStatusCode.InternalServerError;
                 }
             });
+        }
+
+        private static byte[] BuildJsonResponse(IEnumerable<BuyLowSellHigh> response)
+        {
+            var jobj = new JObject();
+            foreach (var buyLowSellHigh in response)
+            {
+                jobj.Add(new JProperty(buyLowSellHigh.FileName,
+                    new JObject(
+                        new JProperty("buyPoint", buyLowSellHigh.Buy.ToString()),
+                        new JProperty("sellPoint", buyLowSellHigh.Sell.ToString())
+                    )));
+            }
+
+            var jsonBytes = Encoding.UTF8.GetBytes(jobj.ToString());
+            return jsonBytes;
+        }
+
+        private IEnumerable<BuyLowSellHigh> ComputeResponse(List<InputStream> inputStreams)
+        {
+            var response = new ConcurrentBag<BuyLowSellHigh>();
+
+            Parallel.ForEach(inputStreams, inputStream =>
+            {
+                try
+                {
+                    var rawTicks = DecodeQrCode(inputStream.MemoryStream);
+
+                    var ticks = rawTicks.Split(' ').Select(double.Parse).ToArray();
+
+                    var result = _bestTradesFinder.Find(ticks);
+
+                    if (result.Success)
+                    {
+                        response.Add(new BuyLowSellHigh
+                        {
+                            FileName = inputStream.FileName,
+                            Buy = result.Buy,
+                            Sell = result.Sell
+                        });
+                    }
+                }
+                catch
+                {
+                }
+            });
+            return response;
+        }
+
+        private static List<InputStream> ExtractArchive(Stream bodyStream)
+        {
+            var inputStreams = new List<InputStream>();
+
+            using (var archive = new ZipArchive(bodyStream))
+            {
+                foreach (var entry in archive.Entries)
+                {
+                    using (var entryStream = entry.Open())
+                    {
+                        var memoryStream = new MemoryStream();
+                        entryStream.CopyTo(memoryStream);
+
+                        inputStreams.Add(new InputStream
+                        {
+                            FileName = entry.Name,
+                            MemoryStream = memoryStream
+                        });
+                    }
+                }
+            }
+
+            return inputStreams;
+        }
+
+        private Stream ExtractBodyStream()
+        {
+            var contentTypeRegex = new Regex("^multipart/form-data;\\s*boundary=(.*)$", RegexOptions.IgnoreCase);
+            Stream bodyStream = null;
+
+            if (contentTypeRegex.IsMatch(Request.Headers.ContentType))
+            {
+                var boundary = contentTypeRegex.Match(Request.Headers.ContentType).Groups[1].Value;
+                var multipart = new HttpMultipart(Request.Body, boundary);
+                bodyStream = multipart.GetBoundaries().First().Value;
+            }
+
+            return bodyStream;
         }
 
         private static string DecodeQrCode(Stream entryStream)
